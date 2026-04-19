@@ -1,63 +1,137 @@
-import Image from "next/image";
+'use client';
+import useSWR from 'swr';
+import { useEffect, useState } from 'react';
+import { AlertCircle, CheckCircle2, GitPullRequest, GitMerge, GitCommit } from 'lucide-react';
+import Header from '@/components/Header';
+import StatCard from '@/components/StatCard';
+import IssuesList from '@/components/IssuesList';
+import PRsList from '@/components/PRsList';
+import Leaderboard from '@/components/Leaderboard';
+import ActivityFeed from '@/components/ActivityFeed';
+import ProgressBar from '@/components/ProgressBar';
+import { DashboardData } from '@/lib/github';
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+const REFRESH_INTERVAL = 10;
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+export default function Dashboard() {
+  const { data, error, isValidating } = useSWR<DashboardData>('/api/github', fetcher, {
+    refreshInterval: REFRESH_INTERVAL * 1000,
+    revalidateOnFocus: false,
+  });
+
+  const [refreshIn, setRefreshIn] = useState(REFRESH_INTERVAL);
+
+  useEffect(() => {
+    setRefreshIn(REFRESH_INTERVAL);
+    const id = setInterval(() => {
+      setRefreshIn((s) => (s <= 1 ? REFRESH_INTERVAL : s - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [data]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#0a0e1a] flex items-center justify-center">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-8 max-w-md text-center">
+          <AlertCircle className="text-red-400 mx-auto mb-3" size={40} />
+          <h2 className="text-white font-bold text-lg mb-2">Failed to load data</h2>
+          <p className="text-slate-400 text-sm">{error.message ?? 'Check your GITHUB_TOKEN env var.'}</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-[#0a0e1a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-400 text-sm">Loading dashboard…</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen bg-[#0a0e1a] flex flex-col text-white overflow-hidden">
+      <Header
+        lastUpdated={data.lastUpdated}
+        refreshIn={refreshIn}
+        isLoading={isValidating}
+      />
+
+      <main className="flex-1 flex flex-col gap-3 p-4 min-h-0">
+        {/* Stat Cards */}
+        <div className="grid grid-cols-5 gap-3 shrink-0">
+          <StatCard
+            label="Open Issues"
+            value={data.openIssues.length}
+            icon={AlertCircle}
+            color="red"
+            subtitle="need attention"
+          />
+          <StatCard
+            label="Closed Today"
+            value={data.closedToday.length}
+            icon={CheckCircle2}
+            color="green"
+            subtitle="issues resolved"
+          />
+          <StatCard
+            label="Open PRs"
+            value={data.openPRs.length}
+            icon={GitPullRequest}
+            color="blue"
+            subtitle="awaiting review/merge"
+          />
+          <StatCard
+            label="Merged Today"
+            value={data.mergedToday.length}
+            icon={GitMerge}
+            color="purple"
+            subtitle="PRs landed"
+          />
+          <StatCard
+            label="Commits Today"
+            value={data.commitsToday}
+            icon={GitCommit}
+            color="amber"
+            subtitle="pushed to all branches"
+          />
+        </div>
+
+        {/* Progress Bar */}
+        <div className="shrink-0">
+          <ProgressBar
+            closedToday={data.closedToday.length}
+            openIssues={data.openIssues.length}
+          />
+        </div>
+
+        {/* Main 3-column grid — fills all remaining height */}
+        <div className="grid grid-cols-3 gap-3 flex-1 min-h-0">
+          <IssuesList
+            openIssues={data.openIssues}
+            closedToday={data.closedToday}
+          />
+          <PRsList
+            openPRs={data.openPRs}
+            mergedToday={data.mergedToday}
+          />
+          {/* Right column: leaderboard takes 55%, activity feed takes 45% */}
+          <div className="flex flex-col gap-3 min-h-0">
+            <div className="min-h-0" style={{ flex: '0 0 55%' }}>
+              <Leaderboard
+                leaderboard={data.todayLeaderboard}
+                commitsToday={data.commitsToday}
+              />
+            </div>
+            <div className="min-h-0" style={{ flex: '0 0 calc(45% - 0.75rem)' }}>
+              <ActivityFeed events={data.activity} />
+            </div>
+          </div>
         </div>
       </main>
     </div>
