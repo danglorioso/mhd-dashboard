@@ -150,7 +150,7 @@ export default function CommitTree({ linesLastHour }: Props) {
 
         <div className="flex justify-between text-[10px] tabular-nums">
           <span className="text-slate-500">
-            last hour: <span className="text-slate-200 font-semibold">{fmt(linesLastHour)} lines</span>
+            last 10 min: <span className="text-slate-200 font-semibold">{fmt(linesLastHour)} lines</span>
           </span>
           {next ? (
             <span className="text-slate-500">

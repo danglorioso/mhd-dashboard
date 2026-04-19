@@ -84,7 +84,7 @@ async function ghFetch<T>(path: string, token: string): Promise<T> {
 
 export async function fetchLinesChanged(token: string): Promise<LinesData> {
   const since = todayISO();
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const oneHourAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
   const commits = await ghFetch<{ sha: string; commit: { committer: { date: string } } }[]>(
     `/commits?since=${since}&per_page=30`,
