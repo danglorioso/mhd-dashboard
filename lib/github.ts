@@ -45,6 +45,11 @@ export interface ActivityEvent {
   payload: Record<string, unknown>;
 }
 
+export interface LinesData {
+  linesAdded: number;
+  linesDeleted: number;
+}
+
 export interface DashboardData {
   openIssues: Issue[];
   closedToday: Issue[];
@@ -74,6 +79,22 @@ async function ghFetch<T>(path: string, token: string): Promise<T> {
   });
   if (!res.ok) throw new Error(`GitHub API ${path} → ${res.status}`);
   return res.json();
+}
+
+export async function fetchLinesChanged(token: string): Promise<LinesData> {
+  const since = todayISO();
+  const commits = await ghFetch<{ sha: string }[]>(`/commits?since=${since}&per_page=30`, token);
+  const stats = await Promise.all(
+    commits.map((c) =>
+      ghFetch<{ stats: { additions: number; deletions: number } }>(`/commits/${c.sha}`, token).catch(
+        () => ({ stats: { additions: 0, deletions: 0 } }),
+      ),
+    ),
+  );
+  return {
+    linesAdded: stats.reduce((s, c) => s + c.stats.additions, 0),
+    linesDeleted: stats.reduce((s, c) => s + c.stats.deletions, 0),
+  };
 }
 
 export async function fetchDashboard(token: string): Promise<DashboardData> {

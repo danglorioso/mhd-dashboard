@@ -9,7 +9,7 @@ import PRsList from '@/components/PRsList';
 import Leaderboard from '@/components/Leaderboard';
 import ActivityFeed from '@/components/ActivityFeed';
 import ProgressBar from '@/components/ProgressBar';
-import { DashboardData } from '@/lib/github';
+import { DashboardData, LinesData } from '@/lib/github';
 
 const REFRESH_INTERVAL = 10;
 
@@ -18,6 +18,11 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export default function Dashboard() {
   const { data, error, isValidating } = useSWR<DashboardData>('/api/github', fetcher, {
     refreshInterval: REFRESH_INTERVAL * 1000,
+    revalidateOnFocus: false,
+  });
+
+  const { data: linesData } = useSWR<LinesData>('/api/github/lines', fetcher, {
+    refreshInterval: 60 * 1000,
     revalidateOnFocus: false,
   });
 
@@ -60,6 +65,7 @@ export default function Dashboard() {
         lastUpdated={data.lastUpdated}
         refreshIn={refreshIn}
         isLoading={isValidating}
+        linesData={linesData}
       />
 
       <main className="flex-1 flex flex-col gap-3 p-4 min-h-0">
