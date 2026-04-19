@@ -86,25 +86,30 @@ export async function fetchLinesChanged(token: string): Promise<LinesData> {
   const since = todayISO();
   const windowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
-  // Fetch events (all branches) and today's default-branch commits in parallel
-  const [events, todayCommits] = await Promise.all([
-    ghFetch<{ type: string; created_at: string; payload: { commits?: { sha: string }[] } }[]>(
-      `/events?per_page=100`,
-      token,
-    ),
+  // Fetch all branches + today's default-branch commits in parallel
+  const [branches, todayCommits] = await Promise.all([
+    ghFetch<{ name: string }[]>(`/branches?per_page=100`, token),
     ghFetch<{ sha: string }[]>(`/commits?since=${since}&per_page=30`, token),
   ]);
 
-  // SHAs pushed to ANY branch in the last 10 minutes
+  // For every branch, fetch commits pushed in the last 10 min (capped at 15 branches)
+  const perBranch = await Promise.all(
+    branches.slice(0, 15).map((b) =>
+      ghFetch<{ sha: string }[]>(
+        `/commits?sha=${encodeURIComponent(b.name)}&since=${windowStart}&per_page=10`,
+        token,
+      ).catch(() => [] as { sha: string }[]),
+    ),
+  );
+
+  // Deduplicate window SHAs across all branches
   const windowShas = new Set<string>();
-  for (const e of events) {
-    if (e.type === 'PushEvent' && e.created_at >= windowStart) {
-      for (const c of e.payload.commits ?? []) windowShas.add(c.sha);
-    }
+  for (const commits of perBranch) {
+    for (const c of commits) windowShas.add(c.sha);
   }
 
-  // Fetch stats for window SHAs + today's commits (deduped, capped at 40)
-  const allShas = [...new Set([...windowShas, ...todayCommits.map((c) => c.sha)])].slice(0, 40);
+  // Fetch stats for all unique SHAs (window + today, capped at 35 to stay within rate limit)
+  const allShas = [...new Set([...windowShas, ...todayCommits.map((c) => c.sha)])].slice(0, 35);
   const statsResults = await Promise.all(
     allShas.map((sha) =>
       ghFetch<{ stats: { additions: number; deletions: number } }>(`/commits/${sha}`, token).catch(

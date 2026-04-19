@@ -23,7 +23,7 @@ export default function Dashboard() {
   });
 
   const { data: linesData } = useSWR<LinesData>('/api/github/lines', fetcher, {
-    refreshInterval: 60 * 1000,
+    refreshInterval: 90 * 1000,
     revalidateOnFocus: false,
   });
 
