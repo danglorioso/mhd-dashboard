@@ -48,6 +48,7 @@ export interface ActivityEvent {
 export interface LinesData {
   linesAdded: number;
   linesDeleted: number;
+  linesChangedLastHour: number;
 }
 
 export interface DashboardData {
@@ -83,7 +84,12 @@ async function ghFetch<T>(path: string, token: string): Promise<T> {
 
 export async function fetchLinesChanged(token: string): Promise<LinesData> {
   const since = todayISO();
-  const commits = await ghFetch<{ sha: string }[]>(`/commits?since=${since}&per_page=30`, token);
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const commits = await ghFetch<{ sha: string; commit: { committer: { date: string } } }[]>(
+    `/commits?since=${since}&per_page=30`,
+    token,
+  );
   const stats = await Promise.all(
     commits.map((c) =>
       ghFetch<{ stats: { additions: number; deletions: number } }>(`/commits/${c.sha}`, token).catch(
@@ -91,10 +97,18 @@ export async function fetchLinesChanged(token: string): Promise<LinesData> {
       ),
     ),
   );
-  return {
-    linesAdded: stats.reduce((s, c) => s + c.stats.additions, 0),
-    linesDeleted: stats.reduce((s, c) => s + c.stats.deletions, 0),
-  };
+
+  let linesAdded = 0, linesDeleted = 0, linesChangedLastHour = 0;
+  for (let i = 0; i < commits.length; i++) {
+    const { additions, deletions } = stats[i].stats;
+    linesAdded += additions;
+    linesDeleted += deletions;
+    if (commits[i].commit.committer.date >= oneHourAgo) {
+      linesChangedLastHour += additions + deletions;
+    }
+  }
+
+  return { linesAdded, linesDeleted, linesChangedLastHour };
 }
 
 export async function fetchDashboard(token: string): Promise<DashboardData> {

@@ -18,6 +18,28 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+@keyframes sway {
+  0%, 100% { transform: rotate(-2deg); }
+  50%       { transform: rotate(2deg); }
+}
+@keyframes droop {
+  0%, 100% { transform: rotate(-1deg) translateY(0); }
+  50%       { transform: rotate(1deg) translateY(3px); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-4px); }
+  75%       { transform: translateX(4px); }
+}
+@keyframes leaf-fall {
+  0%   { opacity: 1; transform: translateY(0) rotate(0deg) translateX(0); }
+  100% { opacity: 0; transform: translateY(50px) rotate(200deg) translateX(15px); }
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #334155 transparent;

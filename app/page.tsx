@@ -9,6 +9,7 @@ import PRsList from '@/components/PRsList';
 import Leaderboard from '@/components/Leaderboard';
 import ActivityFeed from '@/components/ActivityFeed';
 import ProgressBar from '@/components/ProgressBar';
+import CommitTree from '@/components/CommitTree';
 import { DashboardData, LinesData } from '@/lib/github';
 
 const REFRESH_INTERVAL = 10;
@@ -126,15 +127,18 @@ export default function Dashboard() {
             openPRs={data.openPRs}
             mergedToday={data.mergedToday}
           />
-          {/* Right column: leaderboard takes 55%, activity feed takes 45% */}
+          {/* Right column: tree / leaderboard / activity feed */}
           <div className="flex flex-col gap-3 min-h-0">
-            <div className="min-h-0" style={{ flex: '0 0 55%' }}>
+            <div className="min-h-0" style={{ flex: '33' }}>
+              <CommitTree linesLastHour={linesData?.linesChangedLastHour ?? 0} />
+            </div>
+            <div className="min-h-0" style={{ flex: '37' }}>
               <Leaderboard
                 leaderboard={data.todayLeaderboard}
                 commitsToday={data.commitsToday}
               />
             </div>
-            <div className="min-h-0" style={{ flex: '0 0 calc(45% - 0.75rem)' }}>
+            <div className="min-h-0" style={{ flex: '30' }}>
               <ActivityFeed events={data.activity} />
             </div>
           </div>
