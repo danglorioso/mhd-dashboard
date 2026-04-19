@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MHD Bug Bash Dashboard",
   description: "JumboCode × Massachusetts Historical Society — Live Bug Bash Dashboard",
+  icons: { icon: '/favicon.png' },
 };
 
 export default function RootLayout({
