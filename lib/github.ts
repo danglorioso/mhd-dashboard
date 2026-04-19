@@ -84,28 +84,46 @@ async function ghFetch<T>(path: string, token: string): Promise<T> {
 
 export async function fetchLinesChanged(token: string): Promise<LinesData> {
   const since = todayISO();
-  const oneHourAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const windowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
-  const commits = await ghFetch<{ sha: string; commit: { committer: { date: string } } }[]>(
-    `/commits?since=${since}&per_page=30`,
-    token,
-  );
-  const stats = await Promise.all(
-    commits.map((c) =>
-      ghFetch<{ stats: { additions: number; deletions: number } }>(`/commits/${c.sha}`, token).catch(
+  // Fetch events (all branches) and today's default-branch commits in parallel
+  const [events, todayCommits] = await Promise.all([
+    ghFetch<{ type: string; created_at: string; payload: { commits?: { sha: string }[] } }[]>(
+      `/events?per_page=100`,
+      token,
+    ),
+    ghFetch<{ sha: string }[]>(`/commits?since=${since}&per_page=30`, token),
+  ]);
+
+  // SHAs pushed to ANY branch in the last 10 minutes
+  const windowShas = new Set<string>();
+  for (const e of events) {
+    if (e.type === 'PushEvent' && e.created_at >= windowStart) {
+      for (const c of e.payload.commits ?? []) windowShas.add(c.sha);
+    }
+  }
+
+  // Fetch stats for window SHAs + today's commits (deduped, capped at 40)
+  const allShas = [...new Set([...windowShas, ...todayCommits.map((c) => c.sha)])].slice(0, 40);
+  const statsResults = await Promise.all(
+    allShas.map((sha) =>
+      ghFetch<{ stats: { additions: number; deletions: number } }>(`/commits/${sha}`, token).catch(
         () => ({ stats: { additions: 0, deletions: 0 } }),
       ),
     ),
   );
+  const statsMap = new Map(allShas.map((sha, i) => [sha, statsResults[i].stats]));
 
-  let linesAdded = 0, linesDeleted = 0, linesChangedLastHour = 0;
-  for (let i = 0; i < commits.length; i++) {
-    const { additions, deletions } = stats[i].stats;
-    linesAdded += additions;
-    linesDeleted += deletions;
-    if (commits[i].commit.committer.date >= oneHourAgo) {
-      linesChangedLastHour += additions + deletions;
-    }
+  let linesAdded = 0, linesDeleted = 0;
+  for (const c of todayCommits) {
+    const s = statsMap.get(c.sha);
+    if (s) { linesAdded += s.additions; linesDeleted += s.deletions; }
+  }
+
+  let linesChangedLastHour = 0;
+  for (const sha of windowShas) {
+    const s = statsMap.get(sha);
+    if (s) linesChangedLastHour += s.additions + s.deletions;
   }
 
   return { linesAdded, linesDeleted, linesChangedLastHour };
