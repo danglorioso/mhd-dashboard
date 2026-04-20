@@ -119,15 +119,12 @@ export default function Dashboard() {
 
         {/* Main 3-column grid — fills all remaining height */}
         <div className="grid grid-cols-3 gap-3 flex-1 min-h-0">
-          <IssuesList
-            openIssues={data.openIssues}
-            closedToday={data.closedToday}
-          />
+          <ActivityFeed events={data.activity} />
           <PRsList
             openPRs={data.openPRs}
             mergedToday={data.mergedToday}
           />
-          {/* Right column: tree / leaderboard / activity feed */}
+          {/* Right column: tree / leaderboard / issues */}
           <div className="flex flex-col gap-3 min-h-0">
             <div className="min-h-0" style={{ flex: '33' }}>
               <CommitTree linesLastHour={linesData?.linesChangedLastHour ?? 0} />
@@ -139,7 +136,10 @@ export default function Dashboard() {
               />
             </div>
             <div className="min-h-0" style={{ flex: '30' }}>
-              <ActivityFeed events={data.activity} />
+              <IssuesList
+                openIssues={data.openIssues}
+                closedToday={data.closedToday}
+              />
             </div>
           </div>
         </div>

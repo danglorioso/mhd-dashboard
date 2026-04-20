@@ -22,8 +22,9 @@ export default function Header({ lastUpdated, refreshIn, isLoading, linesData }:
   useEffect(() => {
     const tick = () => {
       const now = new Date();
-      setTime(now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      setDate(now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
+      const tz = 'America/New_York';
+      setTime(now.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setDate(now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
     };
     tick();
     const id = setInterval(tick, 1000);

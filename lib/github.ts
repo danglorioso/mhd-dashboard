@@ -64,9 +64,16 @@ export interface DashboardData {
 }
 
 function todayISO() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+  const tz = 'America/New_York';
+  const now = new Date();
+  // Get today's date in ET (YYYY-MM-DD)
+  const etDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
+  const [y, m, d] = etDate.split('-').map(Number);
+  // Determine UTC offset for ET right now (4h EDT, 5h EST) — handles DST automatically
+  const etHour = +new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(now) % 24;
+  const offsetH = ((now.getUTCHours() - etHour) + 24) % 24;
+  // Midnight ET expressed as UTC
+  return new Date(Date.UTC(y, m - 1, d, offsetH, 0, 0)).toISOString();
 }
 
 async function ghFetch<T>(path: string, token: string): Promise<T> {
@@ -84,32 +91,37 @@ async function ghFetch<T>(path: string, token: string): Promise<T> {
 
 export async function fetchLinesChanged(token: string): Promise<LinesData> {
   const since = todayISO();
-  const windowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-  // Fetch all branches + today's default-branch commits in parallel
+  // Fetch all branches alongside today's default-branch commits
   const [branches, todayCommits] = await Promise.all([
     ghFetch<{ name: string }[]>(`/branches?per_page=100`, token),
-    ghFetch<{ sha: string }[]>(`/commits?since=${since}&per_page=30`, token),
+    ghFetch<{ sha: string; commit: { committer: { date: string } } }[]>(
+      `/commits?since=${since}&per_page=30`,
+      token,
+    ),
   ]);
 
-  // For every branch, fetch commits pushed in the last 10 min (capped at 15 branches)
+  // For each branch, fetch commits from the last hour.
+  // A 1-hour window is wide enough that GitHub's commit-date filter is reliable —
+  // nobody holds local commits for over an hour during a bug bash.
   const perBranch = await Promise.all(
-    branches.slice(0, 15).map((b) =>
-      ghFetch<{ sha: string }[]>(
-        `/commits?sha=${encodeURIComponent(b.name)}&since=${windowStart}&per_page=10`,
+    branches.slice(0, 20).map((b) =>
+      ghFetch<{ sha: string; commit: { committer: { date: string } } }[]>(
+        `/commits?sha=${encodeURIComponent(b.name)}&since=${oneHourAgo}&per_page=10`,
         token,
-      ).catch(() => [] as { sha: string }[]),
+      ).catch(() => [] as { sha: string; commit: { committer: { date: string } } }[]),
     ),
   );
 
-  // Deduplicate window SHAs across all branches
+  // Deduplicate SHAs from all branches that fall inside the 1-hour window
   const windowShas = new Set<string>();
   for (const commits of perBranch) {
     for (const c of commits) windowShas.add(c.sha);
   }
 
-  // Fetch stats for all unique SHAs (window + today, capped at 35 to stay within rate limit)
-  const allShas = [...new Set([...windowShas, ...todayCommits.map((c) => c.sha)])].slice(0, 35);
+  // Fetch stats for window SHAs + today's default-branch commits (deduped, capped at 40)
+  const allShas = [...new Set([...windowShas, ...todayCommits.map((c) => c.sha)])].slice(0, 40);
   const statsResults = await Promise.all(
     allShas.map((sha) =>
       ghFetch<{ stats: { additions: number; deletions: number } }>(`/commits/${sha}`, token).catch(
